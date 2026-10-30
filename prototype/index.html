@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Raise App — タスク管理ボード (プロトタイプ)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0079bf;
+      min-height: 100vh;
+      user-select: none;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: rgba(0,0,0,0.2);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header h1 { color: #fff; font-size: 18px; font-weight: 700; }
+    .badge {
+      font-size: 11px;
+      background: rgba(255,255,255,0.25);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* ── Board ── */
+    .board {
+      display: flex;
+      gap: 12px;
+      padding: 20px;
+      align-items: flex-start;
+      overflow-x: auto;
+      min-height: calc(100vh - 50px);
+    }
+
+    /* ── Column ── */
+    .column {
+      background: #ebecf0;
+      border-radius: 8px;
+      width: 280px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 90px);
+    }
+    .column-header {
+      padding: 10px 12px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .column-title { font-size: 14px; font-weight: 700; color: #172b4d; }
+    .column-count {
+      font-size: 12px; color: #6b778c;
+      background: rgba(9,30,66,0.1);
+      border-radius: 50%;
+      width: 22px; height: 22px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600;
+    }
+
+    /* ── Card list ── */
+    .card-list {
+      padding: 0 8px 4px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 40px;
+    }
+    .card-list.drag-over {
+      background: rgba(0,121,191,0.08);
+      border-radius: 4px;
+    }
+
+    /* drop placeholder */
+    .drop-placeholder {
+      height: 6px;
+      background: #0079bf;
+      border-radius: 3px;
+      opacity: 0;
+      transition: height 0.1s, opacity 0.1s;
+      flex-shrink: 0;
+    }
+    .drop-placeholder.visible {
+      height: 52px;
+      opacity: 0.25;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 6px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 2px rgba(9,30,66,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: grab;
+      transition: box-shadow 0.15s, opacity 0.15s;
+      position: relative;
+    }
+    .card:hover { box-shadow: 0 4px 8px rgba(9,30,66,0.2); }
+    .card.dragging {
+      opacity: 0.4;
+      cursor: grabbing;
+    }
+
+    .card-text {
+      font-size: 14px;
+      color: #172b4d;
+      line-height: 1.5;
+      word-break: break-word;
+      user-select: text;
+    }
+
+    /* ── Card meta row ── */
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .card-meta-left { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    /* 優先度バッジ */
+    .priority-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .priority-badge:hover { opacity: 0.8; }
+    .priority-high   { background: #ffebe6; color: #bf2600; }
+    .priority-medium { background: #fffae6; color: #974f0c; }
+    .priority-low    { background: #e3fcef; color: #006644; }
+    .priority-none   { background: #f4f5f7; color: #6b778c; }
+
+    /* 期限バッジ */
+    .due-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      white-space: nowrap;
+      cursor: pointer;
+      border: none;
+      background: #f4f5f7;
+      color: #6b778c;
+      transition: background 0.15s;
+    }
+    .due-badge:hover { background: #dfe1e6; }
+    .due-badge.overdue  { background: #ffebe6; color: #bf2600; }
+    .due-badge.due-soon { background: #fffae6; color: #974f0c; }
+    .due-badge.done-col { background: #e3fcef; color: #006644; }
+
+    /* 削除ボタン */
+    .btn-delete {
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 8px;
+      background: transparent;
+      color: #97a0af;
+      transition: background 0.15s, color 0.15s;
+      margin-left: auto;
+    }
+    .btn-delete:hover { background: #ffebe6; color: #bf2600; }
+
+    /* ── Priority picker popup ── */
+    .popup {
+      position: fixed;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(9,30,66,0.25);
+      padding: 8px;
+      z-index: 1000;
+      min-width: 130px;
+      display: none;
+    }
+    .popup.open { display: block; }
+    .popup-title {
+      font-size: 11px;
+      color: #6b778c;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 6px 8px;
+    }
+    .popup-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: transparent;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .popup-item:hover { background: #f4f5f7; }
+
+    /* ── Date picker popup ── */
+    .date-popup {
+      position: fixed;
+      background: #fff;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(9,30,66,0.25);
+      padding: 12px;
+      z-index: 1000;
+      display: none;
+    }
+    .date-popup.open { display: block; }
+    .date-popup label { font-size: 12px; color: #6b778c; display: block; margin-bottom: 6px; font-weight: 600; }
+    .date-popup input[type="date"] {
+      border: 2px solid #dfe1e6;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+      width: 160px;
+    }
+    .date-popup input[type="date"]:focus { border-color: #0079bf; }
+    .date-popup-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .date-popup-actions button {
+      border: none; border-radius: 4px; cursor: pointer;
+      font-size: 13px; font-weight: 600; padding: 5px 12px;
+    }
+    .btn-date-confirm { background: #0079bf; color: #fff; }
+    .btn-date-clear   { background: #f4f5f7; color: #6b778c; }
+
+    /* ── Add card form ── */
+    .add-form {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .add-textarea {
+      width: 100%;
+      border: 2px solid #0079bf;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      color: #172b4d;
+    }
+    .add-form-controls { display: flex; gap: 6px; align-items: center; }
+    .btn-add-confirm {
+      background: #0079bf; color: #fff;
+      border: none; border-radius: 4px; cursor: pointer;
+      font-size: 14px; font-weight: 600; padding: 6px 14px;
+    }
+    .btn-add-confirm:hover { background: #0065a6; }
+    .btn-cancel {
+      background: transparent; border: none; cursor: pointer;
+      color: #6b778c; font-size: 20px; padding: 0 4px; line-height: 1;
+    }
+    .btn-add-trigger {
+      width: 100%; background: transparent; border: none; cursor: pointer;
+      color: #5e6c84; text-align: left;
+      padding: 8px 10px; border-radius: 6px;
+      font-size: 14px; transition: background 0.15s, color 0.15s;
+    }
+    .btn-add-trigger:hover { background: rgba(9,30,66,0.1); color: #172b4d; }
+    .btn-add-trigger::before { content: '+ '; font-size: 16px; font-weight: 700; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; color: #adb5bd;
+      font-size: 13px; padding: 16px 0;
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>タスク管理ボード</h1>
+  <span class="badge">プロトタイプ v1</span>
+</header>
+
+<main class="board" id="board"></main>
+
+<!-- Priority popup -->
+<div class="popup" id="priorityPopup">
+  <div class="popup-title">優先度</div>
+  <button class="popup-item" data-priority="high"   style="color:#bf2600">🔴 高</button>
+  <button class="popup-item" data-priority="medium" style="color:#974f0c">🟡 中</button>
+  <button class="popup-item" data-priority="low"    style="color:#006644">🟢 低</button>
+  <button class="popup-item" data-priority="none"   style="color:#6b778c">⬜ なし</button>
+</div>
+
+<!-- Due date popup -->
+<div class="date-popup" id="datePopup">
+  <label>期限日</label>
+  <input type="date" id="dateInput">
+  <div class="date-popup-actions">
+    <button class="btn-date-confirm" id="btnDateConfirm">設定</button>
+    <button class="btn-date-clear"   id="btnDateClear">削除</button>
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────
+const STORAGE_KEY = 'raise-app-v1';
+
+const PRIORITY_LABEL = { high: '高', medium: '中', low: '低', none: 'なし' };
+const PRIORITY_CLASS = { high: 'priority-high', medium: 'priority-medium', low: 'priority-low', none: 'priority-none' };
+
+// ── Default data ───────────────────────────────────────
+const defaultData = {
+  columns: [
+    { id: 'todo', title: '未着手', cards: [
+      { id: 'card-1', text: 'デザインの確認',           priority: 'high',   due: '2026-11-05' },
+      { id: 'card-2', text: 'ユーザーインタビューの準備', priority: 'medium', due: null },
+    ]},
+    { id: 'in-progress', title: '進行中', cards: [
+      { id: 'card-3', text: 'プロトタイプ作成', priority: 'high', due: '2026-10-31' },
+    ]},
+    { id: 'done', title: '完了', cards: [
+      { id: 'card-4', text: '要件定義書レビュー', priority: 'low', due: '2026-10-28' },
+    ]},
+  ]
+};
+
+// ── State ──────────────────────────────────────────────
+let state = loadData();
+let openFormColumnId = null;
+
+// popup targets
+let activePopupCardId = null;
+let activePopupColId  = null;
+
+// drag state
+let dragCardId  = null;
+let dragColId   = null;
+let dragCardEl  = null;
+
+// ── Persistence ────────────────────────────────────────
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultData;
+    const parsed = JSON.parse(raw);
+    // migrate: ensure priority/due fields exist
+    parsed.columns.forEach(col => col.cards.forEach(card => {
+      if (!card.priority) card.priority = 'none';
+      if (card.due === undefined) card.due = null;
+    }));
+    return parsed;
+  } catch { return defaultData; }
+}
+
+function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function generateId() { return 'card-' + Date.now() + '-' + Math.random().toString(36).slice(2,7); }
+
+// ── Due date helpers ───────────────────────────────────
+function dueClass(due, columnId) {
+  if (!due) return '';
+  if (columnId === 'done') return 'done-col';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(due);
+  if (d < today) return 'overdue';
+  const diff = (d - today) / 86400000;
+  if (diff <= 2) return 'due-soon';
+  return '';
+}
+
+function dueLabel(due) {
+  if (!due) return '期限なし';
+  const d = new Date(due);
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+// ── Render ─────────────────────────────────────────────
+function render() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  state.columns.forEach(column => {
+    const isFormOpen = openFormColumnId === column.id;
+
+    const colEl = document.createElement('div');
+    colEl.className = 'column';
+    colEl.dataset.colId = column.id;
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'column-header';
+    header.innerHTML = `
+      <span class="column-title">${escapeHtml(column.title)}</span>
+      <span class="column-count">${column.cards.length}</span>
+    `;
+    colEl.appendChild(header);
+
+    // Card list
+    const cardList = document.createElement('div');
+    cardList.className = 'card-list';
+    cardList.dataset.colId = column.id;
+
+    if (column.cards.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'カードがありません';
+      cardList.appendChild(empty);
+    } else {
+      column.cards.forEach(card => {
+        const dc = dueClass(card.due, column.id);
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card';
+        cardEl.draggable = true;
+        cardEl.dataset.cardId = card.id;
+        cardEl.dataset.colId  = column.id;
+
+        cardEl.innerHTML = `
+          <div class="card-text">${escapeHtml(card.text)}</div>
+          <div class="card-meta">
+            <div class="card-meta-left">
+              <button class="priority-badge ${PRIORITY_CLASS[card.priority || 'none']}"
+                data-action="priority" data-card-id="${card.id}" data-col-id="${column.id}">
+                優先度: ${PRIORITY_LABEL[card.priority || 'none']}
+              </button>
+              <button class="due-badge ${dc}"
+                data-action="due" data-card-id="${card.id}" data-col-id="${column.id}">
+                📅 ${dueLabel(card.due)}
+              </button>
+            </div>
+            <button class="btn-delete"
+              data-action="delete" data-card-id="${card.id}" data-col-id="${column.id}">
+              ✕
+            </button>
+          </div>
+        `;
+
+        // Drag events
+        cardEl.addEventListener('dragstart', onDragStart);
+        cardEl.addEventListener('dragend',   onDragEnd);
+
+        cardList.appendChild(cardEl);
+      });
+    }
+
+    // Drop zone events on card-list
+    cardList.addEventListener('dragover',  onDragOver);
+    cardList.addEventListener('dragleave', onDragLeave);
+    cardList.addEventListener('drop',      onDrop);
+
+    colEl.appendChild(cardList);
+
+    // Add form
+    const formEl = document.createElement('div');
+    formEl.className = 'add-form';
+    if (isFormOpen) {
+      formEl.innerHTML = `
+        <textarea class="add-textarea" id="textarea-${column.id}" rows="3" placeholder="カードのタイトルを入力..."></textarea>
+        <div class="add-form-controls">
+          <button class="btn-add-confirm" data-col-id="${column.id}">カードを追加</button>
+          <button class="btn-cancel" data-cancel="true">✕</button>
+        </div>
+      `;
+    } else {
+      formEl.innerHTML = `
+        <button class="btn-add-trigger" data-open-form="${column.id}">カードを追加</button>
+      `;
+    }
+    colEl.appendChild(formEl);
+    board.appendChild(colEl);
+
+    if (isFormOpen) {
+      requestAnimationFrame(() => {
+        const ta = document.getElementById(`textarea-${column.id}`);
+        if (ta) ta.focus();
+      });
+    }
+  });
+
+  board.onclick   = handleClick;
+  board.onkeydown = handleKeydown;
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(str));
+  return d.innerHTML;
+}
+
+// ── Click handler ──────────────────────────────────────
+function handleClick(e) {
+  const t = e.target;
+
+  if (t.dataset.openForm) {
+    openFormColumnId = t.dataset.openForm;
+    closeAllPopups();
+    render();
+    return;
+  }
+  if (t.dataset.cancel) {
+    openFormColumnId = null;
+    render();
+    return;
+  }
+  if (t.classList.contains('btn-add-confirm')) {
+    const colId = t.dataset.colId;
+    const ta = document.getElementById(`textarea-${colId}`);
+    const text = ta ? ta.value.trim() : '';
+    if (!text) { ta.style.borderColor = '#eb5a46'; ta.focus(); return; }
+    addCard(colId, text);
+    return;
+  }
+
+  const action = t.dataset.action;
+  if (action === 'delete') { deleteCard(t.dataset.colId, t.dataset.cardId); return; }
+  if (action === 'priority') { openPriorityPopup(t, t.dataset.colId, t.dataset.cardId); return; }
+  if (action === 'due')      { openDatePopup(t, t.dataset.colId, t.dataset.cardId); return; }
+
+  closeAllPopups();
+}
+
+function handleKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    const ta = e.target;
+    if (ta.classList.contains('add-textarea')) {
+      const colId = ta.id.replace('textarea-', '');
+      const text = ta.value.trim();
+      if (!text) return;
+      addCard(colId, text);
+    }
+  }
+  if (e.key === 'Escape') {
+    if (openFormColumnId) { openFormColumnId = null; render(); }
+    closeAllPopups();
+  }
+}
+
+// ── Operations ─────────────────────────────────────────
+function addCard(columnId, text) {
+  const col = state.columns.find(c => c.id === columnId);
+  if (!col) return;
+  col.cards.push({ id: generateId(), text, priority: 'none', due: null });
+  openFormColumnId = null;
+  saveData();
+  render();
+}
+
+function deleteCard(columnId, cardId) {
+  const col = state.columns.find(c => c.id === columnId);
+  if (!col) return;
+  col.cards = col.cards.filter(c => c.id !== cardId);
+  saveData();
+  render();
+}
+
+function setPriority(columnId, cardId, priority) {
+  const col = state.columns.find(c => c.id === columnId);
+  if (!col) return;
+  const card = col.cards.find(c => c.id === cardId);
+  if (!card) return;
+  card.priority = priority;
+  saveData();
+  render();
+}
+
+function setDue(columnId, cardId, due) {
+  const col = state.columns.find(c => c.id === columnId);
+  if (!col) return;
+  const card = col.cards.find(c => c.id === cardId);
+  if (!card) return;
+  card.due = due;
+  saveData();
+  render();
+}
+
+// ── Priority popup ─────────────────────────────────────
+function openPriorityPopup(anchor, colId, cardId) {
+  closeAllPopups();
+  activePopupCardId = cardId;
+  activePopupColId  = colId;
+  const popup = document.getElementById('priorityPopup');
+  const rect  = anchor.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + 4 + window.scrollY) + 'px';
+  popup.style.left = (rect.left + window.scrollX) + 'px';
+  popup.classList.add('open');
+
+  popup.onclick = e => {
+    const p = e.target.dataset.priority;
+    if (!p) return;
+    setPriority(activePopupColId, activePopupCardId, p);
+    closeAllPopups();
+  };
+}
+
+// ── Date popup ─────────────────────────────────────────
+function openDatePopup(anchor, colId, cardId) {
+  closeAllPopups();
+  activePopupCardId = cardId;
+  activePopupColId  = colId;
+
+  const col  = state.columns.find(c => c.id === colId);
+  const card = col && col.cards.find(c => c.id === cardId);
+  const popup = document.getElementById('datePopup');
+  const input = document.getElementById('dateInput');
+  input.value = card && card.due ? card.due : '';
+
+  const rect = anchor.getBoundingClientRect();
+  popup.style.top  = (rect.bottom + 4 + window.scrollY) + 'px';
+  popup.style.left = (rect.left + window.scrollX) + 'px';
+  popup.classList.add('open');
+
+  document.getElementById('btnDateConfirm').onclick = () => {
+    setDue(activePopupColId, activePopupCardId, input.value || null);
+    closeAllPopups();
+  };
+  document.getElementById('btnDateClear').onclick = () => {
+    setDue(activePopupColId, activePopupCardId, null);
+    closeAllPopups();
+  };
+}
+
+function closeAllPopups() {
+  document.getElementById('priorityPopup').classList.remove('open');
+  document.getElementById('datePopup').classList.remove('open');
+  activePopupCardId = null;
+  activePopupColId  = null;
+}
+
+document.addEventListener('click', e => {
+  const pp = document.getElementById('priorityPopup');
+  const dp = document.getElementById('datePopup');
+  if (pp.classList.contains('open') && !pp.contains(e.target) && e.target.dataset.action !== 'priority') pp.classList.remove('open');
+  if (dp.classList.contains('open') && !dp.contains(e.target) && e.target.dataset.action !== 'due') dp.classList.remove('open');
+}, true);
+
+// ── Drag & Drop ────────────────────────────────────────
+function onDragStart(e) {
+  dragCardId = e.currentTarget.dataset.cardId;
+  dragColId  = e.currentTarget.dataset.colId;
+  dragCardEl = e.currentTarget;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragCardId);
+  setTimeout(() => dragCardEl && dragCardEl.classList.add('dragging'), 0);
+}
+
+function onDragEnd() {
+  if (dragCardEl) dragCardEl.classList.remove('dragging');
+  document.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
+  document.querySelectorAll('.card-list.drag-over').forEach(el => el.classList.remove('drag-over'));
+  dragCardId = dragCardEl = dragColId = null;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  const list = e.currentTarget;
+  list.classList.add('drag-over');
+
+  // remove old placeholder
+  list.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
+
+  // find insertion point
+  const afterEl = getDragAfterElement(list, e.clientY);
+  const placeholder = document.createElement('div');
+  placeholder.className = 'drop-placeholder visible';
+
+  if (!afterEl) {
+    list.appendChild(placeholder);
+  } else {
+    list.insertBefore(placeholder, afterEl);
+  }
+}
+
+function onDragLeave(e) {
+  const list = e.currentTarget;
+  if (!list.contains(e.relatedTarget)) {
+    list.classList.remove('drag-over');
+    list.querySelectorAll('.drop-placeholder').forEach(el => el.remove());
+  }
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  if (!dragCardId) return;
+
+  const targetColId = e.currentTarget.dataset.colId;
+  const afterEl     = getDragAfterElement(e.currentTarget, e.clientY);
+  const afterCardId = afterEl ? afterEl.dataset.cardId : null;
+
+  moveCardTo(dragColId, dragCardId, targetColId, afterCardId);
+}
+
+function getDragAfterElement(container, y) {
+  const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+  return cards.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child };
+    }
+    return closest;
+  }, { offset: -Infinity }).element;
+}
+
+function moveCardTo(fromColId, cardId, toColId, afterCardId) {
+  const fromCol = state.columns.find(c => c.id === fromColId);
+  const toCol   = state.columns.find(c => c.id === toColId);
+  if (!fromCol || !toCol) return;
+
+  const cardIndex = fromCol.cards.findIndex(c => c.id === cardId);
+  if (cardIndex === -1) return;
+
+  const [card] = fromCol.cards.splice(cardIndex, 1);
+
+  if (!afterCardId) {
+    toCol.cards.push(card);
+  } else {
+    const afterIndex = toCol.cards.findIndex(c => c.id === afterCardId);
+    toCol.cards.splice(afterIndex, 0, card);
+  }
+
+  saveData();
+  render();
+}
+
+// ── Init ───────────────────────────────────────────────
+render();
+</script>
+</body>
+</html>
