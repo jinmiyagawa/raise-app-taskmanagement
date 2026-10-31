@@ -13,13 +13,12 @@
 
 ## 2. バージョンロードマップ
 
-| バージョン | 技術スタック | 主な目的 |
-|-----------|-------------|---------|
-| **v1** | React + localStorage | Reactの基本・state管理を理解する |
-| **v2** | React + localStorage | コンポーネント設計・UIを深める |
-| **v3** | React + JSON Server | 非同期処理・HTTP通信を理解する |
-| **v4** | React + Node.js + DB | サーバーサイド・データベースを理解する |
-| **v5** | フルスタック | 認証・デプロイ・実用アプリとして完成 |
+| バージョン | フロントエンド | バックエンド | 主な目的 |
+|-----------|-------------|------------|---------|
+| **v1** | React + Vite + TypeScript + TailwindCSS | Spring Boot + Gradle + PostgreSQL | DB構築・REST API・Reactデータ表示の基礎を理解する |
+| **v2** | 同上 | 同上 | カード編集・カラム追加など機能拡張・UI改善 |
+| **v3** | 同上 | 同上 + 認証 | ユーザー認証（Spring Security + JWT）を理解する |
+| **v4** | 同上 | 同上 + デプロイ | 本番環境へのデプロイ・実用アプリとして完成 |
 
 ---
 
@@ -269,19 +268,38 @@ ER図（Entity Relationship Diagram）とは「データの種類と関係」を
 
 ---
 
-## 8. 技術スタック（v1）
+## 8. 技術スタック
+
+### フロントエンド
 
 | 役割 | 技術 | バージョン |
 |------|------|-----------|
 | UIライブラリ | React | 19.x |
+| 言語 | TypeScript | 5.x |
 | ビルドツール | Vite | 最新安定版 |
-| スタイリング | CSS Modules または Plain CSS | — |
-| データ保存 | localStorage（ブラウザ標準API） | — |
-| 言語 | JavaScript（JSX） | — |
+| スタイリング | TailwindCSS | 4.x |
+| ドラッグ&ドロップ | @dnd-kit/core + @dnd-kit/sortable | 最新安定版 |
+
+### バックエンド
+
+| 役割 | 技術 | バージョン |
+|------|------|-----------|
+| 言語 | Java | 25 |
+| フレームワーク | Spring Boot | 4.x |
+| ビルドツール | Gradle | 最新安定版 |
+| API形式 | REST API | — |
+| ORM | Spring Data JPA + Hibernate | (Spring Boot同梱) |
+| DBマイグレーション | Flyway | (Spring Boot同梱) |
+
+### データベース
+
+| 役割 | 技術 | バージョン |
+|------|------|-----------|
+| RDBMS | PostgreSQL | 16 |
 
 ---
 
-## 9. コンポーネント設計（v1）
+## 9. コンポーネント設計
 
 <!-- [変更] コンポーネント設計：Cardの子要素を更新（2026-10-30）
   - 「移動ボタン（→）」を削除（ドラッグ&ドロップに変更のため）
@@ -318,26 +336,46 @@ App
 
 ---
 
-## 11. ディレクトリ構成（v1予定）
+## 11. ディレクトリ構成
 
 ```
 raise-app-taskmanagement/
 ├── docs/
-│   └── requirements.md        # この要件定義書
+│   └── requirements.md              # この要件定義書
 ├── prototype/
-│   └── index.html             # 認識合わせ用プロトタイプ（HTML/CSS/JS単体動作）
-├── src/
-│   ├── components/
-│   │   ├── Board.jsx
-│   │   ├── Column.jsx
-│   │   ├── Card.jsx
-│   │   └── AddCardForm.jsx
-│   ├── App.jsx
-│   ├── App.css
-│   └── main.jsx
-├── index.html
-├── package.json
-└── vite.config.js
+│   └── index.html                   # 認識合わせ用プロトタイプ
+├── backend/                         # Spring Boot (Gradle)
+│   ├── build.gradle
+│   ├── settings.gradle
+│   ├── gradlew / gradlew.bat
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/raiseapp/taskmanagement/
+│       │   │   ├── config/          # CorsConfig など
+│       │   │   ├── controller/      # REST APIエンドポイント
+│       │   │   ├── service/         # ビジネスロジック
+│       │   │   ├── repository/      # DB アクセス (JPA)
+│       │   │   ├── entity/          # JPA エンティティ
+│       │   │   └── dto/             # リクエスト/レスポンス用データクラス
+│       │   └── resources/
+│       │       ├── application.properties
+│       │       └── db/migration/    # Flyway SQL ファイル
+│       └── test/
+└── frontend/                        # React + Vite + TypeScript
+    ├── index.html
+    ├── package.json
+    ├── vite.config.ts
+    ├── tsconfig.json
+    └── src/
+        ├── api/                     # バックエンドAPI呼び出し関数
+        ├── hooks/                   # カスタムフック（useBoard など）
+        ├── components/
+        │   ├── Board/
+        │   ├── Column/
+        │   ├── Card/
+        │   └── AddCardForm/
+        ├── App.tsx
+        └── main.tsx
 ```
 
 ---
@@ -349,9 +387,10 @@ raise-app-taskmanagement/
 | 2026-10-30 | v1.0 | 初版作成 |
 | 2026-10-30 | v1.1 | 非機能要件・ユースケース・ER図を追加 |
 | 2026-10-30 | v1.2 | プロトタイプ確認後の修正。カード移動をD&Dに変更、優先度・期限をv1スコープに追加 |
+| 2026-10-31 | v1.3 | 技術スタック変更。フロント：TypeScript・TailwindCSS追加。バックエンド：MavenからGradleへ変更。バージョンロードマップ・ディレクトリ構成を実態に合わせ更新 |
 
 ---
 
 *作成日：2026-10-30*
-*更新日：2026-10-30*
-*バージョン：v1.2*
+*更新日：2026-10-31*
+*バージョン：v1.3*
