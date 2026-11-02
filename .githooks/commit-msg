@@ -1,0 +1,28 @@
+#!/bin/sh
+# commit-msg hook: Conventional Commits形式を強制する
+
+commit_msg_file="$1"
+first_line=$(head -n1 "$commit_msg_file")
+
+# マージ・リベース・fixupコミットは除外
+if echo "$first_line" | grep -qE "^Merge |^Revert |^fixup! |^squash! "; then
+  exit 0
+fi
+
+# Conventional Commits パターン: type(scope): subject または type: subject
+pattern='^(feat|fix|docs|refactor|test|chore|style)(\([a-z]+\))?: .+'
+
+if ! echo "$first_line" | grep -qE "$pattern"; then
+  echo "----------------------------------------"
+  echo "コミットメッセージの形式が正しくありません。"
+  echo ""
+  echo "正しい形式: <type>(<scope>): <summary>"
+  echo "例: feat(task): タスク一覧フィルタ機能を追加"
+  echo ""
+  echo "使用できるtype:"
+  echo "  feat, fix, docs, refactor, test, chore, style"
+  echo "----------------------------------------"
+  exit 1
+fi
+
+exit 0
